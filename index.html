@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redeem Code</title>
+    <style>
+        :root {
+            --primary: #10b981;
+            --bg: #111827;
+            --card-bg: #1f2937;
+            --text: #f3f4f6;
+            --border: #374151;
+            --hack: #ef4444; /* Red color for hack mode */
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden; /* Prevent body scroll when menu is open */
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            position: relative;
+            z-index: 10;
+        }
+
+        h2 { margin-top: 0; }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: #111827;
+            color: white;
+            font-size: 1rem;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-top: 5px;
+            transition: background 0.3s;
+        }
+
+        /* Hack Button Style */
+        button.hack-btn {
+            background: var(--hack);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        button.download-btn {
+            background: #3b82f6;
+            margin-top: 10px;
+        }
+        button.download-btn:hover { background: #2563eb; }
+        button:disabled { background: #4b5563; cursor: wait; }
+
+        .msg { margin-top: 15px; padding: 10px; border-radius: 6px; display: none; }
+        .success { background: #064e3b; color: #d1fae5; border: 1px solid #059669; }
+        .error { background: #7f1d1d; color: #fee2e2; border: 1px solid #b91c1c; }
+
+        .log-area {
+            margin-top: 20px;
+            text-align: left;
+            font-size: 0.8rem;
+            color: #9ca3af;
+            max-height: 150px;
+            overflow-y: auto;
+            border-top: 1px solid var(--border);
+            padding-top: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+
+        /* Hidden Menu Overlay */
+        #hackMenu {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 100;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #hackMenu.active { display: flex; }
+
+        .menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--hack);
+            padding-bottom: 10px;
+        }
+
+        .close-btn {
+            background: transparent;
+            color: white;
+            border: 1px solid white;
+            width: auto;
+            padding: 5px 15px;
+            margin: 0;
+        }
+
+        .code-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 10px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .code-pill {
+            background: #333;
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+            font-family: monospace;
+            font-weight: bold;
+            border: 1px solid #444;
+        }
+        .code-pill:active { background: var(--hack); }
+
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>Redeem Session</h2>
+        <p>Enter code to apply cookies</p>
+        
+        <input type="text" id="codeInput" placeholder="ENTER CODE HERE" autocomplete="off">
+        <button id="mainBtn" onclick="redeemCode()">REDEEM NOW</button>
+        
+        <div id="msg" class="msg"></div>
+        
+        <!-- Manual Download Button -->
+        <button id="downloadBtn" class="download-btn" style="display: none;" onclick="downloadCookieFile()">Download as .txt</button>
+        
+        <div id="log" class="log-area">Waiting...</div>
+    </div>
+
+    <!-- Hidden Hack Menu -->
+    <div id="hackMenu">
+        <div class="menu-header">
+            <h3 style="margin:0; color: var(--hack);">тЪая╕П ADMIN ACCESS</h3>
+            <button class="close-btn" onclick="closeHackMenu()">CLOSE</button>
+        </div>
+        <div id="codeGrid" class="code-grid">
+            <!-- Codes will appear here -->
+        </div>
+        <div style="margin-top: 10px; color: #666; font-size: 0.8rem;">Tap any code to redeem instantly</div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getDatabase, ref, get, remove, child, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
+
+        // FIREBASE CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyDXKeIOlD8r0xNM61pzh82og0DBQvlnxEk",
+            authDomain: "fire-me-a2f00.firebaseapp.com",
+            databaseURL: "https://fire-me-a2f00-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "fire-me-a2f00",
+            storageBucket: "fire-me-a2f00.firebasestorage.app",
+            messagingSenderId: "1010150322376",
+            appId: "1:1010150322376:web:625ab284498f3e2bea75fd"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        let globalCookieText = "";
+
+        const codeInput = document.getElementById('codeInput');
+        const mainBtn = document.getElementById('mainBtn');
+        const hackMenu = document.getElementById('hackMenu');
+        const codeGrid = document.getElementById('codeGrid');
+
+        // ==========================================
+        // UNIQ
+        // ==========================================
+        codeInput.addEventListener('input', (e) => {
+            const val = e.target.value.trim();
+            if (val === "Tolae") {
+                activateHackMode();
+            } else {
+                // Revert to normal if they delete 777
+                mainBtn.innerText = "REDEEM NOW";
+                mainBtn.classList.remove('hack-btn');
+            }
+        });
+
+        function activateHackMode() {
+            mainBtn.innerText = "ЁЯФУ OPEN HACK MENU";
+            mainBtn.classList.add('hack-btn');
+            // Change button action
+            mainBtn.onclick = openHackMenu;
+        }
+
+        window.openHackMenu = async function() {
+            hackMenu.classList.add('active');
+            codeGrid.innerHTML = "Loading active codes...";
+
+            try {
+                const snapshot = await get(ref(db, 'codes'));
+                codeGrid.innerHTML = ""; // Clear loading text
+
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    let count = 0;
+                    Object.keys(data).forEach(key => {
+                        // Only show ACTIVE codes (active !== false)
+                        if (data[key].active !== false) {
+                            const pill = document.createElement('div');
+                            pill.className = 'code-pill';
+                            pill.innerText = key;
+                            // Make the pill clickable to redeem directly
+                            pill.onclick = () => {
+                                closeHackMenu();
+                                redeemSpecificCode(key);
+                            };
+                            codeGrid.appendChild(pill);
+                            count++;
+                        }
+                    });
+                    if(count === 0) codeGrid.innerHTML = "No active codes found.";
+                } else {
+                    codeGrid.innerHTML = "Database is empty.";
+                }
+            } catch (err) {
+                codeGrid.innerHTML = "Error loading codes.";
+            }
+        };
+
+        window.closeHackMenu = function() {
+            hackMenu.classList.remove('active');
+            // Reset button
+            codeInput.value = "";
+            mainBtn.innerText = "REDEEM NOW";
+            mainBtn.classList.remove('hack-btn');
+            mainBtn.onclick = redeemCode; // Restore original function
+        };
+
+        // ==========================================
+        // REDEEM LOGIC (Normal)
+        // ==========================================
+        window.redeemCode = async function() {
+            const code = codeInput.value.trim().toUpperCase();
+            if(!code) return;
+            processRedemption(code);
+        };
+
+        // Redeem a specific code (from Hack Menu)
+        async function redeemSpecificCode(code) {
+            codeInput.value = code; // Visually fill input
+            await processRedemption(code);
+        }
+
+        async function processRedemption(code) {
+            const btn = document.getElementById('mainBtn');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const msgBox = document.getElementById('msg');
+            const logBox = document.getElementById('log');
+
+            // UI Reset
+            btn.disabled = true;
+            btn.innerText = "CHECKING CODE...";
+            msgBox.style.display = 'none';
+            downloadBtn.style.display = 'none';
+            logBox.innerText = "Connecting to database...";
+
+            try {
+                const dbRef = ref(db);
+                const snapshot = await get(child(dbRef, `codes/${code}`));
+
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    const rawCookieText = data.cookieRaw;
+
+                    if (rawCookieText) {
+                        globalCookieText = rawCookieText;
+                        logBox.innerText += "\nCode found! Applying cookies...";
+                        
+                        // 1. Apply Cookies
+                        const result = applyCookieBlock(rawCookieText);
+                        logBox.innerText += `\n${result}`;
+                        
+                        // 2. DELETE THE CODE
+                        logBox.innerText += "\nDeleting code from database...";
+                        await remove(ref(db, `codes/${code}`));
+                        
+                        // 3. Success UI
+                        showSuccess(`Code Redeemed!`);
+                        downloadBtn.style.display = 'inline-block';
+                        downloadBtn.innerText = "Download Backup (.txt)";
+                        
+                        codeInput.value = "";
+                    } else {
+                        throw new Error("Code has no data.");
+                    }
+
+                } else {
+                    showError("Invalid or Already Used Code");
+                    logBox.innerText = "Code not found in database.";
+                }
+
+            } catch (err) {
+                console.error(err);
+                showError("Error: " + err.message);
+                logBox.innerText = "Error: " + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "REDEEM NOW";
+            }
+        };
+
+        window.downloadCookieFile = function() {
+            if (!globalCookieText) return;
+            const blob = new Blob([globalCookieText], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            const date = new Date().toISOString().slice(0,10);
+            a.href = url;
+            a.download = `cookies_backup_${date}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+
+        function applyCookieBlock(netscapeFormat) {
+            const lines = netscapeFormat.split('\n');
+            let count = 0;
+            let details = "";
+            lines.forEach(line => {
+                line = line.trim();
+                if (!line || line.startsWith('#')) return;
+                const parts = line.split('\t');
+                if (parts.length >= 7) {
+                    const name = parts[5];
+                    const value = parts[6];
+                    const secure = parts[3] === 'TRUE';
+                    let cookieStr = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; path=/;`;
+                    if (secure) cookieStr += " Secure;";
+                    cookieStr += " SameSite=Lax;";
+                    document.cookie = cookieStr;
+                    count++;
+                    details += `[+] Set: ${name}\n`;
+                }
+            });
+            return details + `\nTotal Cookies Injected: ${count}`;
+        }
+
+        function showSuccess(msg) {
+            const el = document.getElementById('msg');
+            el.className = "msg success";
+            el.innerText = msg;
+            el.style.display = 'block';
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('msg');
+            el.className = "msg error";
+            el.innerText = msg;
+            el.style.display = 'block';
+        }
+
+    </script>
+</body>
+  </html>
